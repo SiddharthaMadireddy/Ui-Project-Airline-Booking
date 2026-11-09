@@ -7,9 +7,15 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -36,11 +42,33 @@ jobs:
 
       - name: Build Web Application
         working-directory: ./indian_airlines
-        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+        run: |
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          echo "Building for base-href: /$REPO_NAME/"
+          flutter build web --release --base-href "/$REPO_NAME/"
+          touch build/web/.nojekyll
 
-      - name: Deploy to GitHub Pages
+      - name: Deploy to gh-pages branch (Branch Deployment Option)
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./indian_airlines/build/web
 
+      - name: Upload Pages Artifact (GitHub Actions Deployment Option)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./indian_airlines/build/web
+
+  deploy:
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
